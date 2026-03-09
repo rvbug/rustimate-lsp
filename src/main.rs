@@ -18,71 +18,12 @@ struct Backend {
     documents: DashMap<String, String>, 
 }
 
-// ---------------------------------------------------------
-// HELPERS
-// ---------------------------------------------------------
-
-/// Identifies if we are in the top level, a scene block, or a nested code block.
-fn get_current_block(text: &str, line: usize) -> String {
-    let lines: Vec<&str> = text.lines().collect();
-    if line >= lines.len() { return "top".to_string(); }
-
-    let mut brace_stack = 0;
-    for i in (0..=line).rev() {
-        let current_line = lines[i].trim();
-        
-        // Count braces to determine nesting depth
-        if current_line.contains('}') { brace_stack += 1; }
-        if current_line.contains('{') {
-            if brace_stack > 0 {
-                brace_stack -= 1;
-                continue;
-            }
-            if current_line.contains("code {") { return "code".to_string(); }
-            if current_line.contains("scene") { return "scene".to_string(); }
-            if current_line.contains("config") { return "config".to_string(); }
-        }
-    }
-    "top".to_string()
-}
-
-/// Looks specifically for the 'mode:' setting within the current scene block.
-fn get_active_mode(text: &str, line: usize) -> String {
-    let lines: Vec<&str> = text.lines().collect();
-    for i in (0..=line).rev() {
-        let l = lines[i].trim();
-        if l.contains("mode: presentation") { return "presentation".to_string(); }
-        if l.contains("mode: editor") { return "editor".to_string(); }
-        if l.contains("mode: terminal") { return "terminal".to_string(); }
-        // Stop if we hit the start of the scene so we don't bleed into previous scenes
-        if l.contains("scene") && l.contains('{') { break; }
-    }
-    "none".to_string()
-}
-
 fn get_line_context(text: &str, line: usize) -> String {
     let lines: Vec<&str> = text.lines().collect();
     if line >= lines.len() { return "".to_string(); }
     lines[line].to_string() // Keep whitespace for "scene " check
 }
 
-fn create_completion(label: &str, detail: &str, doc: &str) -> CompletionItem {
-    CompletionItem {
-        label: label.to_string(),
-        detail: Some(detail.to_string()),
-        documentation: Some(Documentation::MarkupContent(MarkupContent {
-            kind: MarkupKind::Markdown,
-            value: doc.to_string(),
-        })),
-        kind: Some(CompletionItemKind::KEYWORD),
-        insert_text: Some(label.to_string()),
-        ..Default::default()
-    }
-}
-
-// ---------------------------------------------------------
-// SERVER IMPLEMENTATION
-// ---------------------------------------------------------
 
 #[tower_lsp::async_trait]
 impl LanguageServer for Backend {
@@ -135,19 +76,33 @@ impl LanguageServer for Backend {
     }
 }
 
+
+
+    async fn did_save(&self, params: DidSaveTextDocumentParams) {
+
+        let uri = params.text_document.uri.to_string();
+        let text = match self.documents.get(&uri) {
+            Some(t) => t.value().clone(),
+            None => return,
+        };
+
+        let mut parser = RustimateParser::new();
+
+        if let Some(tree) = parser.parse(&text) {
+            let diagnostics = collect_diagnostics(&tree, &text);
+
+            self.client
+                .publish_diagnostics(
+                    params.text_document.uri,
+                    diagnostics,
+                    None,
+                )
+            .await;
+        }
+    }
    
 
-   // async fn completion(
-   //      &self,
-   //      _: CompletionParams,
-   //  ) -> Result<Option<CompletionResponse>> {
-   //
-   //      let items = completions();
-   //
-   //      Ok(Some(CompletionResponse::Array(items)))
-   //  }
-
-
+  
     async fn completion(
         &self,
         params: CompletionParams,
