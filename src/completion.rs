@@ -112,13 +112,19 @@ BlockContext::Scene => {
         items.push(keyword("code"));
     }
 
+    if line.starts_with("tr") {
+        items.push(keyword("transition"));
+    }
+         
+
+            
     // mode-dependent suggestions
     if let Some(mode) = mode {
 
         match mode.as_str() {
             "presentation" => {
                 if line.starts_with("te") {
-                    items.push(keyword("text"));
+                   items.push(text_snippet());
                 }
 
                 if line.starts_with("tr") {
@@ -201,6 +207,17 @@ fn scene_snippet() -> CompletionItem {
 }"#
             .into(),
         ),
+        ..Default::default()
+    }
+}
+
+fn text_snippet() -> CompletionItem {
+    CompletionItem {
+        label: "text".into(),
+        kind: Some(CompletionItemKind::SNIPPET),
+        insert_text_format: Some(InsertTextFormat::SNIPPET),
+        insert_text: Some("text \"${1:Hello world}\"".into()),
+        detail: Some("Display text in presentation mode".into()),
         ..Default::default()
     }
 }
