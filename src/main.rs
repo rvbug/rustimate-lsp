@@ -3,6 +3,14 @@ use tower_lsp::lsp_types::*;
 use tower_lsp::{Client, LanguageServer, LspService, Server};
 use dashmap::DashMap;
 
+mod completion;
+mod diagnostics;
+mod parser;
+
+use completion::completions;
+use diagnostics::collect_diagnostics;
+use parser::RustimateParser;
+
 #[derive(Debug)]
 struct Backend {
     #[allow(dead_code)]
@@ -100,91 +108,80 @@ impl LanguageServer for Backend {
         self.documents.insert(params.text_document.uri.to_string(), params.text_document.text);
     }
 
+    
     async fn did_change(&self, params: DidChangeTextDocumentParams) {
-        if let Some(change) = params.content_changes.into_iter().next() {
-            self.documents.insert(params.text_document.uri.to_string(), change.text);
+    if let Some(change) = params.content_changes.into_iter().next() {
+
+        // store document
+        self.documents.insert(
+            params.text_document.uri.to_string(),
+            change.text.clone(),
+        );
+
+        let mut parser = RustimateParser::new();
+
+        if let Some(tree) = parser.parse(&change.text) {
+
+            let diagnostics = collect_diagnostics(&tree, &change.text);
+
+            self.client
+                .publish_diagnostics(
+                    params.text_document.uri.clone(),
+                    diagnostics,
+                    None,
+                )
+                .await;
         }
     }
+}
 
-    async fn completion(&self, params: CompletionParams) -> Result<Option<CompletionResponse>> {
+   
+
+   // async fn completion(
+   //      &self,
+   //      _: CompletionParams,
+   //  ) -> Result<Option<CompletionResponse>> {
+   //
+   //      let items = completions();
+   //
+   //      Ok(Some(CompletionResponse::Array(items)))
+   //  }
+
+
+
+    async fn completion(
+        &self,
+        params: CompletionParams,
+    ) -> Result<Option<CompletionResponse>> {
+
         let uri = params.text_document_position.text_document.uri.to_string();
-        let position = params.text_document_position.position;
-        let doc_text = match self.documents.get(&uri) {
+        let pos = params.text_document_position.position;
+
+        let text = match self.documents.get(&uri) {
             Some(t) => t.value().clone(),
             None => return Ok(None),
         };
 
-        let full_line = get_line_context(&doc_text, position.line as usize);
-        let current_line = full_line.trim();
-        let block_context = get_current_block(&doc_text, position.line as usize);
-        let active_mode = get_active_mode(&doc_text, position.line as usize);
-        
-        let mut completions = Vec::new();
+        let mut parser = RustimateParser::new();
 
-        // 1. TOP LEVEL: Scene Name Guidance
-        // If user types 'scene ' (with a space), suggest the name structure
+        if let Some(tree) = parser.parse(&text) {
 
-        if full_line.ends_with("scene ") {
-            completions.push(create_completion(
-                "\"scene_name\" {",
-                "Create a new scene",
-                r#"### Scene Definition
+            if let Some(node) = parser::node_at_position(
+                &tree,
+                pos.line as usize,
+                pos.character as usize,
+            ) {
 
-                Every animation starts with a scene.
+                let context = parser::find_block_context(node);
+                let mode = parser::detect_scene_mode(node, &text);
 
-                Example:
+                let items = completion::completions(context, mode);
 
-                scene "intro" {
-                  mode: presentation
-                  text "Hello World"
-                }
-                "#
-                )
-
-            );
+                return Ok(Some(CompletionResponse::Array(items)));
+            }
         }
 
-
-        
-        match block_context.as_str() {
-            "top" => {
-                if !current_line.starts_with("scene") {
-                    completions.push(create_completion("scene", "Start a new scene block", "Starts a new animation scene."));
-                    completions.push(create_completion("config {", "Global configuration", "Define global themes or settings."));
-                }
-            },
-            
-            "scene" => {
-                // Shared properties across all modes
-                completions.push(create_completion("mode:", "Set scene layout mode", "Options: `presentation`, `editor`, `terminal`"));
-                completions.push(create_completion("animation:", "Set entrance animation", "Options: `static`, `typewriter`"));
-
-                match active_mode.as_str() {
-                    "presentation" => {
-                        completions.push(create_completion("transition: fade", "Set transition type", "Presentation mode supports `fade` transitions."));
-                        completions.push(create_completion("text \"", "Add display text", "### Text Content\nAdds a line of text to the slide.\n\n**Example:**\n`text \"Hello World\"`"));
-                    },
-                    "editor" => {
-                        completions.push(create_completion("editor:", "Select editor style", "Options: `neovim`, `emacs`"));
-                        completions.push(create_completion("theme:", "Select syntax theme", "Options: `monokai`, `nord`, `dracula`"));
-                        completions.push(create_completion("code {", "Open code source block", "Define the file and lines to display."));
-                    },
-                    "terminal" => {
-                        completions.push(create_completion("terminal \"\"\"", "Terminal block", "### Terminal Simulation\nUse triple quotes to define a shell session.\n\n**Example:**\n```\nterminal \"\"\"\n$ ls\nfile.txt\n\"\"\"\n```"));
-                    },
-                    _ => {}
-                }
-            },
-
-            "code" => {
-                completions.push(create_completion("file:", "Source file path", "The relative path to the source code file."));
-                completions.push(create_completion("lines:", "Line range", "Range of lines to display (e.g., `1..10`)."));
-                completions.push(create_completion("highlight:", "Lines to highlight", "Array of line numbers to highlight (e.g., `[2, 5]`)."));
-            },
-            _ => {}
-        }
-
-        Ok(Some(CompletionResponse::Array(completions)))
+        Ok(None)
     }
 
     async fn hover(&self, params: HoverParams) -> Result<Option<Hover>> {
