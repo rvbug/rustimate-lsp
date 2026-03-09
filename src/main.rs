@@ -148,7 +148,6 @@ impl LanguageServer for Backend {
    //  }
 
 
-
     async fn completion(
         &self,
         params: CompletionParams,
@@ -161,6 +160,12 @@ impl LanguageServer for Backend {
             Some(t) => t.value().clone(),
             None => return Ok(None),
         };
+
+        let line = text
+            .lines()
+            .nth(pos.line as usize)
+            .unwrap_or("")
+            .trim();
 
         let mut parser = RustimateParser::new();
 
@@ -175,7 +180,7 @@ impl LanguageServer for Backend {
                 let context = parser::find_block_context(node);
                 let mode = parser::detect_scene_mode(node, &text);
 
-                let items = completion::completions(context, mode);
+                let items = completions(context, mode, line);
 
                 return Ok(Some(CompletionResponse::Array(items)));
             }
@@ -184,6 +189,8 @@ impl LanguageServer for Backend {
         Ok(None)
     }
 
+
+   
     async fn hover(&self, params: HoverParams) -> Result<Option<Hover>> {
         let uri = params.text_document_position_params.text_document.uri.to_string();
         let position = params.text_document_position_params.position;

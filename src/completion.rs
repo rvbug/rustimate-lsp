@@ -1,18 +1,56 @@
 use tower_lsp::lsp_types::*;
 use crate::parser::BlockContext;
 
+fn value(name: &str) -> CompletionItem {
+    CompletionItem {
+        label: name.into(),
+        kind: Some(CompletionItemKind::VALUE),
+        insert_text: Some(name.into()),
+        ..Default::default()
+    }
+}
 
-pub fn completions(context: BlockContext, mode: Option<String>) -> Vec<CompletionItem> {
-    // vec![
-    //     keyword("scene"),
-    //     keyword("mode"),
-    //     keyword("text"),
-    //     scene_snippet(),
-    // ]
-    //
+
+pub fn completions(context: BlockContext, mode: Option<String>, line: &str) -> Vec<CompletionItem> {
+
     println!("Completion triggered");
     println!("Context: {:?}", context);
     println!("Mode: {:?}", mode);
+
+
+    if line.starts_with("mode:") {
+        return vec![
+            value("presentation"),
+            value("editor"),
+            value("terminal"),
+        ];
+    }
+
+    if line.starts_with("animation:") {
+        return vec![
+            value("static"),
+            value("typewriter"),
+        ];
+    }
+
+    if line.starts_with("editor:") {
+        return vec![
+            value("neovim"),
+            value("emacs"),
+        ];
+    }
+
+    if line.starts_with("theme:") {
+        return vec![
+            value("monokai"),
+            value("nord"),
+            value("dracula"),
+        ];
+    }
+
+    if line.starts_with("terminal") {
+        return vec![];
+    }
 
     match context {
 
@@ -24,9 +62,17 @@ pub fn completions(context: BlockContext, mode: Option<String>) -> Vec<Completio
 
         BlockContext::Scene => {
 
+            // let mut items = vec![
+            //     keyword("mode"),
+            //     keyword("animation"),
+            // ];
+
             let mut items = vec![
-                keyword("mode"),
-                keyword("animation"),
+                property("mode"),
+                property("animation"),
+                property("editor"),
+                property("theme"),
+                keyword("code"),
             ];
 
             if let Some(mode) = mode {
@@ -72,15 +118,25 @@ pub fn completions(context: BlockContext, mode: Option<String>) -> Vec<Completio
 }
 
 
-
 fn keyword(name: &str) -> CompletionItem {
     CompletionItem {
         label: name.into(),
         kind: Some(CompletionItemKind::KEYWORD),
-        insert_text: Some(format!("{}:", name)),
+        insert_text: Some(name.into()),
         ..Default::default()
     }
 }
+
+fn property(name: &str) -> CompletionItem {
+    CompletionItem {
+        label: name.into(),
+        kind: Some(CompletionItemKind::PROPERTY),
+        insert_text: Some(format!("{}: ", name)),
+        ..Default::default()
+    }
+}
+
+
 
 fn scene_snippet() -> CompletionItem {
     CompletionItem {
