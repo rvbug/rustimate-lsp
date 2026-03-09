@@ -79,12 +79,13 @@ Rustimate includes a Language Server that provides.
 * diagnostics
 * hover documentation
 
-Please note that this sstill in development. So there might be issues 
+Please note that project is still in development. 
+If you have any issues, do raise a PR 
 
 
-# Markdown + Quarto Support
+# Reference
 
-
+TBD
 
 
 
