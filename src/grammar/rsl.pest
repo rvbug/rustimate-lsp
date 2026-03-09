@@ -1,0 +1,42 @@
+WHITESPACE    = _{ " " | "\t" | NEWLINE }
+NEWLINE       = _{ "\r\n" | "\n" }
+
+program = { SOI ~ (config_block | scene_block | statement)* ~ EOI }
+statement   = { text_stmt | code_block }
+
+config_block = { "config" ~ "{" ~ config_entry* ~ "}" }
+config_entry = { ident ~ ":" ~ value }
+
+scene_block = { "scene" ~ string ~ "{" ~ scene_entry* ~ "}" }
+scene_entry = { code_block | text_stmt | terminal_stmt | scene_prop }
+scene_prop   = { ident ~ ":" ~ value }
+
+code_block = { "code" ~ "{" ~ code_entry* ~ "}" }
+code_entry = { ident ~ ":" ~ value }
+value  = { string | range | list | number | ident }
+range  = { number ~ ".." ~ number }
+list   = { "[" ~ number ~ ("," ~ number)* ~ "]" }
+number = @{ ASCII_DIGIT+ }
+ident = @{ (ASCII_ALPHA | "_") ~ (ASCII_ALPHANUMERIC | "_")* }
+
+text_stmt     = { "text" ~ string }
+string        = { double_string | single_string }
+terminal_stmt = { "terminal" ~ multiline_string }
+
+double_string = { "\"" ~ double_inner* ~ "\"" }
+single_string = { "'"  ~ single_inner*  ~ "'"  }
+
+multiline_string = {
+    "\"\"\"" ~ multiline_inner* ~ "\"\"\""
+}
+
+multiline_inner = {
+    !("\"\"\"") ~ ANY
+}
+
+double_inner  = { escape | !"\"" ~ ANY }
+single_inner  = { escape | !"'"  ~ ANY }
+
+escape        = { "\\" ~ ANY }
+
+
