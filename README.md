@@ -10,6 +10,8 @@ scene "intro" {
   text "Hello world"
 }
 
+<img width="542" height="294" alt="image" src="https://github.com/user-attachments/assets/fc4624dd-a00e-4ecc-b130-0c5a35914bb9" />
+
 
 # Rustimate
 To know more about Rustimate check out
