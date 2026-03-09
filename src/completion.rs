@@ -18,7 +18,18 @@ pub fn completions(context: BlockContext, mode: Option<String>, line: &str) -> V
     println!("Mode: {:?}", mode);
 
 
-    if line.starts_with("mode:") {
+    if line.ends_with("{") {
+        return vec![];
+    }
+
+
+    if line.starts_with("transition:") || line.starts_with("transition: ") {
+        return vec![
+            value("fade"),
+        ];
+    }
+
+    if line.starts_with("mode:") || line.starts_with("mode: ") {
         return vec![
             value("presentation"),
             value("editor"),
@@ -52,54 +63,95 @@ pub fn completions(context: BlockContext, mode: Option<String>, line: &str) -> V
         return vec![];
     }
 
-    match context {
+    if line == "scene" || line == "scene " {
+        return vec![
+            CompletionItem {
+                label: "\"scene name\" {".into(),
+                kind: Some(CompletionItemKind::SNIPPET),
+                insert_text_format: Some(InsertTextFormat::SNIPPET),
+                insert_text: Some("\"${1:name}\" {\n\t$0\n}".into()),
+                detail: Some("Create a new scene".into()),
+                ..Default::default()
+            }
+        ];
+    }
 
+    match context {
         BlockContext::Top => vec![
             keyword("scene"),
             keyword("config"),
             scene_snippet(),
         ],
 
-        BlockContext::Scene => {
+BlockContext::Scene => {
 
-            // let mut items = vec![
-            //     keyword("mode"),
-            //     keyword("animation"),
-            // ];
+    // nothing typed → don't suggest anything
+    if line.is_empty() {
+        return vec![];
+    }
 
-            let mut items = vec![
-                property("mode"),
-                property("animation"),
-                property("editor"),
-                property("theme"),
-                keyword("code"),
-            ];
+    let mut items = Vec::new();
 
-            if let Some(mode) = mode {
+    if line.starts_with("m") {
+        items.push(property("mode"));
+    }
 
-                match mode.as_str() {
+    if line.starts_with("a") {
+        items.push(property("animation"));
+    }
 
-                    "presentation" => {
-                        items.push(keyword("text"));
-                        items.push(keyword("transition"));
-                    }
+    if line.starts_with("e") {
+        items.push(property("editor"));
+    }
 
-                    "editor" => {
-                        items.push(keyword("theme"));
-                        items.push(keyword("editor"));
-                        items.push(keyword("code"));
-                    }
+    if line.starts_with("t") {
+        items.push(property("theme"));
+    }
 
-                    "terminal" => {
-                        items.push(keyword("terminal"));
-                    }
+    if line.starts_with("c") {
+        items.push(keyword("code"));
+    }
 
-                    _ => {}
+    // mode-dependent suggestions
+    if let Some(mode) = mode {
+
+        match mode.as_str() {
+            "presentation" => {
+                if line.starts_with("te") {
+                    items.push(keyword("text"));
+                }
+
+                if line.starts_with("tr") {
+                    items.push(property("transition"));
                 }
             }
 
-            items
+            "editor" => {
+                if line.starts_with("th") {
+                    items.push(property("theme"));
+                }
+
+                if line.starts_with("ed") {
+                    items.push(property("editor"));
+                }
+
+                if line.starts_with("co") {
+                    items.push(keyword("code"));
+                }
+            }
+
+            "terminal" => {
+                if line.starts_with("ter") {
+                    items.push(keyword("terminal"));
+                }
+            }
+
+            _ => {}
         }
+    }
+
+    items
+}
 
         BlockContext::Code => vec![
             keyword("file"),
@@ -108,8 +160,8 @@ pub fn completions(context: BlockContext, mode: Option<String>, line: &str) -> V
         ],
 
         _ => vec![
-            keyword("scene"),
-            keyword("config"),
+            // keyword("scene"),
+            // keyword("config"),
         ]
     }
 

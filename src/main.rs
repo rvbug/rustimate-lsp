@@ -167,6 +167,9 @@ impl LanguageServer for Backend {
             .unwrap_or("")
             .trim();
 
+        if line.is_empty() {
+            return Ok(None);
+        }
         let mut parser = RustimateParser::new();
 
         if let Some(tree) = parser.parse(&text) {
